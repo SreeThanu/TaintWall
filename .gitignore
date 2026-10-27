@@ -1,0 +1,48 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local state
+*.sqlite
+*.db
+data/
+
+# Eval runs: keep reports, ignore raw logs and traces
+runs/*
+!runs/*/
+runs/*/*
+!runs/*/metrics.json
+!runs/*/config.yaml
+!runs/*/report.md
+eval/report.md.bak
+
+# Load test outputs
+loadtest/results/
+
+# macOS / external drive
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/

@@ -1,0 +1,52 @@
+# Starting policy (draft). Semantics: docs/POLICY_SPEC.md.
+# deny > hold > uncertain > allow; no matching rule => deny; any evaluation error => deny.
+version: 0
+name: default-dev
+rules:
+  - id: grant-required
+    when: { grant.active: false }
+    effect: deny
+    reason: "No active task grant"
+
+  - id: outside-grant
+    when: { tool.in_grant: false }
+    effect: hold
+    reason: "Tool not in the declared task"
+
+  - id: untrusted-into-outgoing
+    when:
+      tool.class: [send_external, money_movement]
+      prov.any_untrusted: true
+    effect: deny
+    reason: "Data from untrusted content used in an outgoing action"
+
+  - id: sensitive-to-new-recipient
+    when:
+      tool.class: send_external
+      prov.any_sensitive: true
+      recipient.known: false
+    effect: hold
+    reason: "Sensitive data to a recipient not seen in trusted sources"
+
+  - id: tainted-session-consequential
+    enabled_in_modes: [session_taint]
+    when:
+      session.tainted: true
+      tool.class: [send_external, money_movement, destructive]
+    effect: hold
+    reason: "Session has read untrusted content"
+
+  - id: destructive-needs-approval
+    when: { tool.class: destructive }
+    effect: hold
+    reason: "Destructive action"
+
+  - id: reads-allowed
+    when: { tool.class: [read_internal, read_external] }
+    effect: allow
+    reason: "Read-only tool"
+
+  - id: sends-allowed-otherwise
+    when: { tool.class: [send_external, money_movement] }
+    effect: allow
+    reason: "Outgoing action with no risk signals"
