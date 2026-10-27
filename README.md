@@ -43,4 +43,28 @@ On **AgentDojo** (ETH Zurich, MIT licence), a public benchmark that simulates em
 
 ## Local setup
 
-Filled in by issue M0-1.
+Requires [uv](https://docs.astral.sh/uv/). The Python version is pinned in `.python-version`, and `pyproject.toml` sets `python-preference = "only-managed"`, so uv downloads and uses its own CPython build instead of a system or conda interpreter.
+
+```bash
+uv sync --all-groups
+uv run pytest -q
+```
+
+### Caches and interpreters on another disk (optional)
+
+uv honors these environment variables if you want its cache and interpreters somewhere other than the defaults, for example on an external drive:
+
+```bash
+export UV_CACHE_DIR="/path/to/uv-cache"            # package and build cache
+export UV_PYTHON_INSTALL_DIR="/path/to/uv-python"  # uv-managed Python interpreters
+export UV_LINK_MODE=copy                           # skips uv's link-then-fallback warning when cache and .venv are on different volumes
+```
+
+Check where uv will write before the first sync:
+
+```bash
+uv cache dir
+uv python dir
+```
+
+On macOS, if `uv sync` fails with "Directory not empty" while recreating `.venv`, close any Finder window showing the repo (Finder writes `.DS_Store` files during the delete) and rerun.
