@@ -1,4 +1,4 @@
-# Agent Gateway
+# Taintwall
 
 A self-hosted control plane for AI agents' tool calls: scoped task grants, declarative policies, prompt-injection defense by data provenance, human approvals, credential injection and a full audit trail. It works with any MCP-speaking agent without changing the agent.
 
@@ -15,7 +15,7 @@ Teams end up either blocking agents from acting or approving everything by hand.
 ## What it does
 
 ```
-Agent (MCP client) ──► Agent Gateway ──► MCP tool servers
+Agent (MCP client) ──► Taintwall ──► MCP tool servers
                          grants · policies · provenance · approvals · vault · audit
 ```
 

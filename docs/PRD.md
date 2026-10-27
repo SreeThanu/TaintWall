@@ -1,4 +1,4 @@
-# Product Requirements — Agent Gateway
+# Product Requirements — Taintwall
 
 Version 0.1 · 27 Oct 2026 · Owner: Thanu
 

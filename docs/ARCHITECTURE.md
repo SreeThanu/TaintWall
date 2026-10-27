@@ -13,7 +13,7 @@ Draft v1, 27 Oct 2026. Reasons for choices are in `DECISIONS.md`.
 ## 2. System overview
 
 ```
-                         ┌──────────────────────────── Agent Gateway ─────────────────────────────┐
+                         ┌────────────────────────────── Taintwall ───────────────────────────────┐
 Agent (MCP client) ─────►│ MCP server endpoint (streamable HTTP)                                  │
  + agent API key         │   1 Auth            agent key → identity, session id                  │
                          │   2 Rate limit      per agent, per tool (token bucket in Redis)        │
@@ -55,37 +55,37 @@ Every stage is an OpenTelemetry span.
 
 ## 4. Components
 
-### 4.1 Gateway process (`gateway/`)
+### 4.1 Gateway process (`taintwall/`)
 - Starlette app hosting the MCP endpoint (MCP Python SDK v2) plus admin/dashboard routes.
 - **Upstream registry:** config lists upstream MCP servers (URL, auth, namespace). On start, connects and caches tool lists; tools exposed as `<namespace>__<tool>`.
 - Stateless: any instance can serve any request.
 
-### 4.2 Policy engine (`gateway/policy/`)
+### 4.2 Policy engine (`taintwall/policy/`)
 - Pure functions: `(CallContext, PolicySet) -> Decision`. No I/O. Easy to test and fast.
 - Policies loaded from YAML, schema-validated, versioned by content hash. See `POLICY_SPEC.md`.
 
-### 4.3 Provenance tracker (`gateway/provenance/`)
+### 4.3 Provenance tracker (`taintwall/provenance/`)
 - **Atom extractors:** email addresses, URLs/domains, IBANs and account numbers, phone numbers, file paths, and word shingles (e.g., 8-word windows) for long free text.
 - **Session atom store:** `session_id → {atom_hash → labels, source_call_ids, first_seen}` with TTL. Redis hash in M3; in-memory dict before.
 - **Matching:** normalise (case, whitespace, punctuation), hash, look up. Shingle matching catches copied paragraphs; it will miss paraphrases (documented limit).
 - **Session taint flag:** set when any untrusted result enters the session.
 
-### 4.4 Grants (`gateway/grants/`)
+### 4.4 Grants (`taintwall/grants/`)
 - Created by an admin API call or by a gateway meta-tool `declare_task(purpose, tools)` that the agent can call; policy decides whether self-declared grants need approval.
 - Fields: `grant_id, agent_id, session_id, tools[], expires_at, revoked_at, created_by`.
 
-### 4.5 Approvals (`gateway/approvals/`)
+### 4.5 Approvals (`taintwall/approvals/`)
 - State machine: `pending → approved | denied | expired`. Transitions are atomic (conditional update in Postgres) so two approvers or two gateway instances cannot both resolve it.
 - Waiting request subscribes to `approval:<id>`; the approver's action publishes the result. Restart safety: on restart, pending approvals stay pending; waiting requests time out cleanly.
 
-### 4.6 Vault (`gateway/vault/`)
+### 4.6 Vault (`taintwall/vault/`)
 - Secrets encrypted with a key from the environment (Fernet or equivalent) in Postgres (M3) or an encrypted local file before that. Decrypted only in memory at injection time.
 
-### 4.7 Audit (`gateway/audit/`)
+### 4.7 Audit (`taintwall/audit/`)
 - Request path puts events on a queue (in-process queue → Redis Stream in M3). A consumer writes them to an append-only Postgres table. If the queue is full, the request still completes but a `audit_backpressure` metric fires; the policy for this (drop vs block) is a recorded decision.
 - Stretch: hash-chain events for tamper evidence.
 
-### 4.8 Dashboard (`gateway/dashboard/`)
+### 4.8 Dashboard (`taintwall/dashboard/`)
 - Server-rendered HTML (Jinja templates), no frontend framework. Pages: approval queue, approval detail (tool, args with secrets redacted, provenance evidence, rule ids), session timeline/replay.
 - Protected by a simple login for approvers.
 
@@ -94,7 +94,7 @@ AgentDojo normally executes tools in-process. To send them through the real netw
 
 ```
 AgentDojo pipeline (claude-haiku-5-5)
-  └─ GatewayToolsExecutor ──MCP──► Agent Gateway ──MCP──► EnvBridge MCP server
+  └─ GatewayToolsExecutor ──MCP──► Taintwall ──MCP──────► EnvBridge MCP server
                                                          (runs inside the harness process,
                                                           holds the live task environment,
                                                           calls runtime.run_function(env, ...))
@@ -138,11 +138,11 @@ OpenTelemetry traces (spans per stage), metrics (decisions by type, approvals pe
 ## 8. Repository layout
 
 ```
-agent-gateway/
+taintwall/
   CLAUDE.md  README.md  pyproject.toml  .env.example  .gitignore
   config/            dev.yaml (upstreams, timeouts, store backends)
   policies/          *.yaml + tool_labels/*.yaml
-  gateway/
+  taintwall/
     app.py  mcp_proxy.py  upstreams.py  auth.py  ratelimit.py
     grants/  policy/  provenance/  approvals/  vault/  audit/  dashboard/  stores/
   eval/

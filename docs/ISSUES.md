@@ -8,8 +8,8 @@ Plan: **M0 setup (day 1) → M1 pass-through + baseline (week 1) → M2 defenses
 
 | ID | Task | Evidence for done | Status |
 |---|---|---|---|
-| M0-1 | Repo skeleton: `uv` project, Python 3.12, packages `gateway/`, `eval/`, `tests/`; pytest, ruff, mypy; dependency groups `dev` and `eval`; smoke test | Tree, `uv run pytest` output, CLAUDE.md commands filled in | done |
-| M0-1b | Rename Agent Gateway / `gateway/` references in README and `docs/` to Taintwall / `taintwall/` | grep showing no stale references (excluding DECISIONS.md history) | todo |
+| M0-1 | Repo skeleton: `uv` project, Python 3.12, packages `taintwall/`, `eval/`, `tests/`; pytest, ruff, mypy; dependency groups `dev` and `eval`; smoke test | Tree, `uv run pytest` output, CLAUDE.md commands filled in | done |
+| M0-1b | Rename Agent Gateway / `gateway/` references in README, `docs/` and CLAUDE.md, plus repo paths, to Taintwall / `taintwall/` | grep showing no stale references (excluding DECISIONS.md history) | done |
 | M0-2 | Local environment on the T7: `UV_CACHE_DIR` and `UV_LINK_MODE` set; check internal disk is not used for caches | `du -sh` of cache on T7; note in README "Local setup" | todo |
 | M0-3 | Pin versions: `mcp`, `agentdojo==0.1.35`, `anthropic` (compatible with AgentDojo); record in DECISIONS.md | `uv.lock` committed; `uv run python -c "import agentdojo, mcp"` works | todo |
 | M0-4 | GitHub repo + CI (ruff, mypy, pytest on push) | Green CI run link | todo |
