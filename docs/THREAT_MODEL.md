@@ -36,7 +36,7 @@ Draft v1, 27 Oct 2026. Review whenever the request path changes.
 | T2 | Injection makes the agent call a harmful tool with **clean** arguments (no tracked data), e.g., "delete all files" | Grants (tool outside task → hold); session-taint mode holds consequential calls after untrusted reads | AgentDojo runs in `session_taint` mode; approvals-per-task metric |
 | T3 | Data exfiltration of sensitive data to a new recipient | `sensitive-to-new-recipient` rule | Tests + AgentDojo exfiltration tasks |
 | T4 | Agent tries tools outside its task | Grants, default deny | Unit tests |
-| T5 | Credential leakage via results, errors or logs | Vault injection server-side; redaction in logs/audit; secret-echo test | Security test suite |
+| T5 | Credential leakage via results, errors or logs | Vault injection server-side; redaction in logs/audit; scrub all vault-injected secret values from upstream results and errors before they reach the agent (upstreams may echo credentials); gateway handlers catch every exception and return a fixed, redacted error (DECISIONS D20); secret-echo test | Security test suite |
 | T6 | Gateway bypass (agent calls upstream directly) | Deployment: upstreams reachable only from gateway network; agents never receive upstream credentials | Documented deployment check |
 | T7 | Approval fatigue: approvers rubber-stamp | Report approvals-per-task; show evidence (source call, matched atom) in the approval view | Eval metric |
 | T8 | Race: two approvers or two instances resolve one approval | Atomic conditional update | State machine test |

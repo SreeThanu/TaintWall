@@ -15,7 +15,7 @@ Draft v1, 27 Oct 2026. Reasons for choices are in `DECISIONS.md`.
 ```
                          ┌────────────────────────────── Taintwall ───────────────────────────────┐
 Agent (MCP client) ─────►│ MCP server endpoint (streamable HTTP)                                  │
- + agent API key         │   1 Auth            agent key → identity, session id                  │
+ + grant token           │   1 Auth            grant token → grant_id, agent_id                   │
                          │   2 Rate limit      per agent, per tool (token bucket in Redis)        │
                          │   3 Grant check     tool ∈ grant? grant unexpired/unrevoked?           │
                          │   4 Provenance      args ∩ session atoms → labels                      │
@@ -40,14 +40,14 @@ Steps 3–5 never call the network except the state store. Step 6 only runs when
 ## 3. Request lifecycle (tools/call)
 
 1. Agent sends `tools/call` for `bank__send_money` with arguments.
-2. **Auth:** API key → `agent_id`; MCP session → `session_id`. Unknown key → error.
+2. **Auth:** the grant token in the credential header the MCP client is configured with → `grant_id` → `agent_id`. Missing, unknown, expired or revoked → error. Provenance and taint state are keyed by `grant_id`; MCP sessions are not used and the endpoint runs `stateless_http=True` (DECISIONS D19, PRIMER "Session (in this project)").
 3. **Rate limit:** token bucket keyed by agent and by tool. Exceeded → error with retry-after.
-4. **Grant:** load active grant for the session. Tool not in grant → per policy `deny` or `hold`.
+4. **Grant:** load the grant named by the token (step 2). Tool not in grant → per policy `deny` or `hold`.
 5. **Provenance:** extract atoms from arguments; look them up in the session's atom store; attach labels such as `untrusted_source`, `sensitive`, with the source tool call ids as evidence.
 6. **Policy:** evaluate rules in order; combine with deny > hold > allow; default deny. Record `rule_ids`, `policy_version`.
 7. **Hold:** create approval record (status `pending`, expires_at). The request waits on a notification (Redis pub/sub) up to `approval_timeout`. Approved → continue. Denied or expired → return an MCP error result explaining it was not executed.
 8. **Vault:** fetch the upstream credential, inject into the upstream request. Never place it in arguments the agent can see.
-9. **Upstream:** call via a pooled MCP client session; circuit breaker per upstream; timeout.
+9. **Upstream:** call through one long-lived MCP `Client` per upstream over a shared, pooled HTTP client (`httpx2.AsyncClient`); there is no MCP session to pool on the `2026-07-28` protocol. Circuit breaker per upstream; timeout. Upstream errors are mapped to fixed, redacted messages (DECISIONS D20).
 10. **Label result:** per-tool config says whether output is `untrusted` (external content) and which fields are `sensitive`; extract atoms and store them in the session with TTL.
 11. **Return** result to agent; **emit audit events** (request, decision, approval, result metadata, latency per stage) to the queue.
 
@@ -66,13 +66,13 @@ Every stage is an OpenTelemetry span.
 
 ### 4.3 Provenance tracker (`taintwall/provenance/`)
 - **Atom extractors:** email addresses, URLs/domains, IBANs and account numbers, phone numbers, file paths, and word shingles (e.g., 8-word windows) for long free text.
-- **Session atom store:** `session_id → {atom_hash → labels, source_call_ids, first_seen}` with TTL. Redis hash in M3; in-memory dict before.
+- **Atom store (per grant):** `grant_id → {atom_hash → labels, source_call_ids, first_seen}` with TTL. Redis hash in M3; in-memory dict before (DECISIONS D19).
 - **Matching:** normalise (case, whitespace, punctuation), hash, look up. Shingle matching catches copied paragraphs; it will miss paraphrases (documented limit).
-- **Session taint flag:** set when any untrusted result enters the session.
+- **Session taint flag:** set when any untrusted result enters the session; stored per `grant_id`.
 
 ### 4.4 Grants (`taintwall/grants/`)
 - Created by an admin API call or by a gateway meta-tool `declare_task(purpose, tools)` that the agent can call; policy decides whether self-declared grants need approval.
-- Fields: `grant_id, agent_id, session_id, tools[], expires_at, revoked_at, created_by`.
+- Fields: `grant_id, agent_id, tools[], expires_at, revoked_at, created_by`. The grant is also the session key (D19).
 
 ### 4.5 Approvals (`taintwall/approvals/`)
 - State machine: `pending → approved | denied | expired`. Transitions are atomic (conditional update in Postgres) so two approvers or two gateway instances cannot both resolve it.
@@ -93,15 +93,16 @@ Every stage is an OpenTelemetry span.
 AgentDojo normally executes tools in-process. To send them through the real network path:
 
 ```
-AgentDojo pipeline (claude-haiku-5-5)
-  └─ GatewayToolsExecutor ──MCP──► Taintwall ──MCP──────► EnvBridge MCP server
+run_task_with_pipeline(..., runtime_class=BridgedRuntime)   pipeline: claude-haiku-5-5 or ground-truth replay
+  └─ BridgedRuntime ──MCP────────► Taintwall ──MCP──────► EnvBridge MCP server
                                                          (runs inside the harness process,
                                                           holds the live task environment,
                                                           calls runtime.run_function(env, ...))
 ```
 
-- `EnvBridge` exposes the current task's AgentDojo functions as MCP tools and mutates the same environment object AgentDojo later inspects for utility and security checks.
-- `GatewayToolsExecutor` replaces AgentDojo's `ToolsExecutor`: it sends each tool call to the gateway and turns gateway errors (blocked, denied, expired) into tool error messages the agent sees.
+- `EnvBridge` is a low-level MCP `Server` (DECISIONS D20) that exposes the current task's AgentDojo functions as MCP tools and mutates the same environment object AgentDojo later inspects for utility and security checks.
+- `BridgedRuntime` is a `FunctionsRuntime` subclass passed as `runtime_class` (DECISIONS D21); AgentDojo's own `ToolsExecutor` stays. Its `run_function` sends each call to the gateway with the task's grant token (a fresh grant per task, D19) and turns gateway errors (blocked, denied, expired) into the `"ErrorType: message"` strings AgentDojo already shows the agent.
+- Deviation: the LLM sees AgentDojo's tool list (`runtime.functions`), not the gateway's `tools/list`. M1-5a checks that the bridge's `list_tools` schemas equal AgentDojo's function schemas (normalized JSON).
 - Tasks run sequentially (one environment at a time). This is a week-1 spike; if it does not work cleanly, record the alternative in DECISIONS.md.
 - Simulated approver for holds: configurable `deny_all` (security-maximal) or `approve_all` (shows what approvals alone cannot stop); both reported.
 
@@ -109,27 +110,27 @@ AgentDojo pipeline (claude-haiku-5-5)
 
 ```
 agents(agent_id, name, api_key_hash, created_at, disabled_at)
-grants(grant_id, agent_id, session_id, tools jsonb, purpose, expires_at, revoked_at, created_by)
+grants(grant_id, agent_id, tools jsonb, purpose, expires_at, revoked_at, created_by)
 policy_versions(version_hash, yaml, loaded_at, loaded_by)
-approvals(approval_id, session_id, agent_id, tool, args_redacted jsonb, evidence jsonb,
+approvals(approval_id, grant_id, agent_id, tool, args_redacted jsonb, evidence jsonb,
           status, created_at, expires_at, decided_by, decided_at)
 secrets(secret_id, upstream, ciphertext, created_at, rotated_at)
-audit_events(event_id, ts, session_id, agent_id, type, payload jsonb, policy_version, rule_ids text[])
+audit_events(event_id, ts, grant_id, agent_id, type, payload jsonb, policy_version, rule_ids text[])
 ```
 
-Redis keys: `atoms:<session_id>` (hash, TTL), `taint:<session_id>`, `rl:<agent>:<tool>`, channel `approval:<id>`, stream `audit`.
+Redis keys: `atoms:<grant_id>` (hash, TTL), `taint:<grant_id>`, `rl:<agent>:<tool>`, channel `approval:<id>`, stream `audit`.
 
 ## 6. Scaling and failure modes
 
 | Concern | Design | Test |
 |---|---|---|
-| Many gateway instances | Stateless processes; shared Redis/Postgres | Two instances behind a simple load balancer pass the integration suite; a session's atoms recorded on one instance block a call on the other |
+| Many gateway instances | Stateless processes; shared Redis/Postgres | Two instances behind a simple load balancer pass the integration suite; a grant's atoms recorded on one instance block a call on the other |
 | Redis down | Provenance and rate limits unavailable → **deny** (fail closed) | Chaos test: stop Redis mid-run |
 | Postgres down | Cannot create approvals or read grants → deny; audit queue buffers | Chaos test |
 | Upstream slow/down | Timeout + circuit breaker; clear error to agent | Fault-injection upstream |
 | Approver absent | Expiry → deny; metric of expired approvals | State machine test |
 | Audit backlog | Bounded queue; backpressure metric; documented drop/block policy | Load test with slow consumer |
-| Hot path latency | Policy engine pure and in-memory; one Redis round trip for atoms; pooled upstream sessions | Latency benchmark per change |
+| Hot path latency | Policy engine pure and in-memory; one Redis round trip for atoms; pooled upstream HTTP connections | Latency benchmark per change |
 
 ## 7. Observability
 

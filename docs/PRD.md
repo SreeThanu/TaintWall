@@ -41,7 +41,7 @@ A drop-in gateway between MCP-speaking AI agents and their tool servers. It enfo
 | ID | Requirement | Acceptance criteria |
 |---|---|---|
 | FR1 | **MCP proxy**: gateway is an MCP server to agents and an MCP client to upstream servers; exposes upstream tools under namespaced names | An unmodified MCP client lists and calls tools from two upstreams through the gateway; results identical to direct calls in a test |
-| FR2 | **Agent identity**: each agent authenticates; calls are attributed to an agent and session | Unauthenticated calls rejected; audit events carry agent id and session id |
+| FR2 | **Agent identity**: each agent authenticates with a task grant token; calls are attributed to an agent and a grant (one task) | Unauthenticated calls rejected; audit events carry agent id and grant id |
 | FR3 | **Grants**: a task grant lists allowed tools and an expiry; calls outside the grant are blocked (or held, per policy) | Tests: in-grant allowed, out-of-grant blocked, expired grant blocked, revoked grant blocked |
 | FR4 | **Policy engine**: YAML policies (see POLICY_SPEC) evaluated on every call; deny > hold > allow; default deny | Schema validation at load; every decision records rule id and policy version; property test: no call is allowed when any matching rule denies |
 | FR5 | **Provenance tracking**: tool results are labelled (trust, sensitivity) by tool config; atoms (emails, URLs, IBANs, phone numbers, long text shingles) are stored per session; outgoing arguments are checked for labelled atoms | Unit tests per atom type; an AgentDojo-style attack (attacker IBAN from an untrusted transaction note used in `send_money`) is blocked in a test |
