@@ -17,3 +17,4 @@ Newest at the bottom. Status: `accepted`, `proposed` (Thanu to confirm), `supers
 | D11 | 2026-10-27 | Simulated approver in eval (`deny_all`, `approve_all`), both reported | Human approval behaviour cannot be measured here; bounds the outcome | accepted |
 | D12 | 2026-10-27 | Dashboard server-rendered (Jinja), no frontend framework | Web is not the focus; keeps time on the backend | accepted |
 | D13 | 2026-10-27 | Audit writes go through a queue, never block decisions; backpressure policy to be decided in M3-5 | Logging must not add latency; durability trade-off made explicit | proposed |
+| D14 | 2026-10-27 | Project name Taintwall; import package `taintwall` | Names an existing project already uses were avoided (agentgateway, Gatehouse, Sluice, Portcullis, Chokepoint) | accepted |
