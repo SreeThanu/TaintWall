@@ -17,6 +17,9 @@ dev = [
 eval = [
     "agentdojo==0.1.35",
     "anthropic==1.13.0",
+    "anyio==4.15.1",
+    "httpx2==2.13.1",
+    "uvicorn==0.54.0",
 ]
 
 [build-system]

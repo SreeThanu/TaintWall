@@ -147,7 +147,9 @@ taintwall/
     app.py  mcp_proxy.py  upstreams.py  auth.py  ratelimit.py
     grants/  policy/  provenance/  approvals/  vault/  audit/  dashboard/  stores/
   eval/
-    harness/  env_bridge.py  gateway_executor.py  configs/  run.py  report.py
+    harness/           env_bridge.py  bridged_runtime.py  connections.py  replay.py  frozen_clock.py
+                       spike_ground_truth.py
+    configs/  run.py  report.py
   loadtest/
   tests/
     unit/  integration/  security/  chaos/

@@ -1309,6 +1309,9 @@ dev = [
 eval = [
     { name = "agentdojo" },
     { name = "anthropic" },
+    { name = "anyio" },
+    { name = "httpx2" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -1323,6 +1326,9 @@ dev = [
 eval = [
     { name = "agentdojo", specifier = "==0.1.35" },
     { name = "anthropic", specifier = "==1.13.0" },
+    { name = "anyio", specifier = "==4.15.1" },
+    { name = "httpx2", specifier = "==2.13.1" },
+    { name = "uvicorn", specifier = "==0.54.0" },
 ]
 
 [[package]]
