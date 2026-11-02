@@ -141,7 +141,7 @@ OpenTelemetry traces (spans per stage), metrics (decisions by type, approvals pe
 
 ```
 taintwall/
-  CLAUDE.md  README.md  pyproject.toml  .env.example  .gitignore
+  README.md  pyproject.toml  .env.example  .gitignore
   config/            dev.yaml (upstreams, timeouts, store backends)
   policies/          *.yaml + tool_labels/*.yaml
   taintwall/

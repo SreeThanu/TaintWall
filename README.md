@@ -39,7 +39,7 @@ On **AgentDojo** (ETH Zurich, MIT licence), a public benchmark that simulates em
 
 ## Documentation
 
-`CLAUDE.md` (rules for building), `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/POLICY_SPEC.md`, `docs/THREAT_MODEL.md`, `docs/EVAL_AND_BUDGET.md`, `docs/ISSUES.md`, `docs/DECISIONS.md`, `docs/PRIMER.md`.
+`docs/CONTRIBUTING.md` (rules for building), `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/POLICY_SPEC.md`, `docs/THREAT_MODEL.md`, `docs/EVAL_AND_BUDGET.md`, `docs/ISSUES.md`, `docs/DECISIONS.md`, `docs/PRIMER.md`.
 
 ## Local setup
 
