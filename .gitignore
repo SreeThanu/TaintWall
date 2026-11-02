@@ -48,3 +48,7 @@ loadtest/results/
 .idea/
 
 .claude/settings.local.json
+
+# Local tooling
+CLAUDE.md
+.claude/
