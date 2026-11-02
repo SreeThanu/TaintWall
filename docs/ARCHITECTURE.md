@@ -57,7 +57,7 @@ Every stage is an OpenTelemetry span.
 
 ### 4.1 Gateway process (`taintwall/`)
 - Starlette app hosting the MCP endpoint (MCP Python SDK v2) plus admin/dashboard routes.
-- **Upstream registry:** config lists upstream MCP servers (URL, auth, namespace). On start, connects and caches tool lists; tools exposed as `<namespace>__<tool>`.
+- **Upstream registry:** config lists upstream MCP servers (URL, auth, namespace). On start, connects and caches tool lists (startup fails if any upstream is unreachable, D24); tools exposed as `<namespace>__<tool>`. Each upstream client is held by its own supervisor task, so one upstream failing cannot cancel the gateway or other upstreams; a broken upstream fails closed until reconnects arrive in M3-6 (D25).
 - Stateless: any instance can serve any request.
 
 ### 4.2 Policy engine (`taintwall/policy/`)

@@ -54,6 +54,7 @@ Plan: **M0 setup (day 1) → M1 pass-through + baseline (week 1) → M2 defenses
 | M3-6 | Rate limits (token bucket) and circuit breakers per upstream | Tests with fault-injection upstream |
 | M3-7 | Minimal dashboard: login, approval queue, approval detail with evidence, session timeline | Screenshot; approve/deny works end-to-end |
 | M3-8 | OpenTelemetry spans per stage | Trace screenshot or exported trace |
+| M3-9 | Tool-definition integrity: hash each upstream's tool definitions (name, description, input/output schemas) at startup; on refresh (with M3-6 reconnects) detect changes and alert, holding changed tools until reviewed (THREAT_MODEL T14) | Test: an upstream that changes a description after startup is detected and its tool is not served unreviewed |
 
 ## M4 — Performance, report, deploy (week 4)
 

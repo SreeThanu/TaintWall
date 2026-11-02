@@ -26,7 +26,8 @@ What a client sees when a tool fails depends on the class and the protocol revis
 - `MCPServer`: the client sees only `Error executing tool <name>` in both modes; a deliberate `ToolError` message is passed through (`mcp/server/mcpserver/exceptions.py`: `ToolError`, `UnexpectedToolError`).
 - Low-level `Server`, `2026-07-28`: the client gets a JSON-RPC error `Internal server error` (`mcp/server/runner.py`, generic `INTERNAL_ERROR` mapping).
 - Low-level `Server`, `2025-11-25` (handshake era, also over HTTP with `stateless_http=True`): the client gets the **raw exception text**, secret included (`mcp/shared/jsonrpc_dispatcher.py`: `ErrorData(code=0, message=str(e))`).
-- The SDK also logs the traceback with the original message (`logger.exception` in `mcp/shared/jsonrpc_dispatcher.py` and `mcp/server/runner.py`; for `MCPServer`, "the server logs the traceback at ERROR", `ToolError` docstring). In the probe the fake secret appeared in the captured log for the low-level `Server` (in-process, both modes); the other cases are from the source, not observed.
+- The SDK also logs the traceback with the original message (`logger.exception` in `mcp/shared/jsonrpc_dispatcher.py` and `mcp/server/runner.py`; for `MCPServer`, "the server logs the traceback at ERROR", `ToolError` docstring). Observed: for the low-level `Server` in the M1-1 probe (in-process, both modes), and for `MCPServer` in M1-2 (the test upstream's `crash` traceback, fake secret included, in the captured ERROR log).
+- Separately, at DEBUG level the libraries log whole messages: `mcp.client.streamable_http` logs each received SSE message and `sse_starlette.sse` each response chunk (observed in M1-3, fake secret included). The gateway therefore never lets those loggers go below INFO (DECISIONS D26).
 So the gateway catches every exception in its own handlers, returns a fixed, redacted error, and logs only redacted text (non-negotiable 2; DECISIONS D20).
 
 ## Proxy / gateway

@@ -44,6 +44,8 @@ Draft v1, 27 Oct 2026. Review whenever the request path changes.
 | T10 | Policy misconfiguration allows too much | Schema validation, default deny, policy tests, version hash in every decision | Tests |
 | T11 | Evasion of provenance matching: attacker asks the agent to rewrite the address ("attacker at example dot com"), split it, or encode it | Normalisation catches simple cases only; **documented limit**; measured with adaptive attacks | Adaptive attack set in eval |
 | T12 | Denial of service via many calls | Rate limits, circuit breakers | Load test |
+| T13 | Duplicate side effects: after a timeout or a broken connection the upstream may already have executed the call; an agent that retries can repeat it (e.g., send money twice) | Audit records `outcome: timeout` / `unavailable` with `outcome_known: false` ("outcome unknown — the upstream may have executed the call"). Idempotency keys / de-duplication are **future work** | Integration and leak tests assert `outcome_known: false` |
+| T14 | Tool-definition rug pull: an upstream changes a tool's description or schema after it was reviewed (e.g., to add hidden instructions) | **M1 caches tool definitions once at startup** and never refreshes them, so a change only takes effect after a gateway restart, unnoticed. Hashing definitions and alerting on change on refresh: ISSUES M3-9 | M3-9 tests |
 
 ## 5. Out of scope (v1)
 

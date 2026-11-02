@@ -91,3 +91,39 @@ def build_upstream(name: str = "taintwall-test-upstream") -> MCPServer:
         return (pattern * (size_bytes // len(pattern) + 1))[:size_bytes]
 
     return server
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Serve the upstream over stateless HTTP; print `READY <url>` once listening."""
+    import argparse
+    import logging
+    import socket
+    import sys
+
+    import uvicorn
+
+    parser = argparse.ArgumentParser(description="Taintwall test upstream")
+    parser.add_argument("--serve", action="store_true", required=True)
+    parser.add_argument("--port", type=int, default=0, help="0 picks a free port")
+    args = parser.parse_args(argv)
+    # Unfiltered on purpose: crash tracebacks (with FAKE_SECRET) go to this process's stderr.
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, force=True)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", args.port))
+    port = sock.getsockname()[1]
+    app = build_upstream().streamable_http_app(stateless_http=True, host="127.0.0.1")
+    server = uvicorn.Server(uvicorn.Config(app, lifespan="on", log_level="info"))
+    original_startup = server.startup
+
+    async def startup(sockets: list[socket.socket] | None = None) -> None:
+        await original_startup(sockets=sockets)
+        if server.started:
+            print(f"READY http://127.0.0.1:{port}/mcp", flush=True)
+
+    server.startup = startup  # type: ignore[method-assign]
+    server.run(sockets=[sock])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

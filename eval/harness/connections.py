@@ -7,9 +7,6 @@ and the HTTP server runs on its own thread and loop, so waits only go caller -> 
 
 from __future__ import annotations
 
-import socket
-import threading
-import time
 from collections import Counter
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
@@ -17,7 +14,6 @@ from typing import Any
 
 import anyio
 import httpx2
-import uvicorn
 from anyio.from_thread import BlockingPortal, start_blocking_portal
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
@@ -25,10 +21,9 @@ from mcp.server.lowlevel.server import Server
 from mcp.types import TextContent, Tool
 
 from eval.harness.env_bridge import EnvBridge, EnvHolder
+from taintwall.testing.http import serve_in_thread
 
 CALL_TIMEOUT_S = 30.0
-SERVER_START_TIMEOUT_S = 10.0
-SERVER_STOP_TIMEOUT_S = 5.0
 
 
 class BridgeConnection:
@@ -86,32 +81,11 @@ async def _http_client(url: str) -> AsyncIterator[Client]:
 
 @contextmanager
 def serve_http(server: Server[Any]) -> Iterator[str]:
-    """Serve `server` with stateless HTTP on 127.0.0.1 in a background thread; yield its URL.
-
-    The socket is bound to port 0 before uvicorn starts, so there is no free-port race.
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    app = server.streamable_http_app(stateless_http=True)
-    http_server = uvicorn.Server(uvicorn.Config(app, log_level="warning", lifespan="on"))
-    thread = threading.Thread(
-        target=http_server.run, kwargs={"sockets": [sock]}, name="envbridge-http", daemon=True
-    )
-    thread.start()
-    try:
-        deadline = time.monotonic() + SERVER_START_TIMEOUT_S
-        while not http_server.started:
-            if not thread.is_alive() or time.monotonic() > deadline:
-                raise RuntimeError("EnvBridge HTTP server did not start")
-            time.sleep(0.01)
-        yield f"http://127.0.0.1:{port}/mcp"
-    finally:
-        http_server.should_exit = True
-        thread.join(timeout=SERVER_STOP_TIMEOUT_S)
-        sock.close()
-        if thread.is_alive():
-            raise RuntimeError("EnvBridge HTTP server thread did not stop")
+    """Serve `server` with stateless HTTP on 127.0.0.1 in a background thread; yield its URL."""
+    with serve_in_thread(
+        server.streamable_http_app(stateless_http=True), name="envbridge-http"
+    ) as base:
+        yield f"{base}/mcp"
 
 
 @contextmanager
