@@ -143,7 +143,9 @@ def main() -> int:
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     (out / "config.yaml").write_text(yaml.safe_dump(run_config, sort_keys=False))
     print(json.dumps(metrics, indent=2))
-    print(f"saved: {out.relative_to(REPO_ROOT)}")
+    resolved = out.resolve()
+    shown = resolved.relative_to(REPO_ROOT) if resolved.is_relative_to(REPO_ROOT) else resolved
+    print(f"saved: {shown}")
     return 0
 
 
