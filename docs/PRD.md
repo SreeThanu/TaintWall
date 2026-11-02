@@ -75,6 +75,6 @@ A drop-in gateway between MCP-speaking AI agents and their tool servers. It enfo
 | ID | Question | Needed by |
 |---|---|---|
 | OQ-1 | Week-1 gate: what share of successful attacks carry attacker-controlled atoms into the harmful call? Decides how much weight provenance vs session taint gets | M1 end |
-| OQ-2 | Postgres/Redis locally: Homebrew-native or Colima with storage on the T7? | M3 start |
+| OQ-2 | Postgres/Redis locally: Homebrew-native or Colima with storage on a configurable disk? | M3 start |
 | OQ-3 | Demo deployment target and its free-tier terms | M4 |
 | OQ-4 | Which LLM for the optional judge (cost vs accuracy) | M4 |
