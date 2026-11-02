@@ -1,6 +1,6 @@
 # Primer — concepts used in this project
 
-Short, plain explanations. Claude Code adds a section before introducing any new concept.
+Short, plain explanations. A section is added before any new concept is introduced.
 
 ## MCP (Model Context Protocol)
 A standard way for an AI application (the **client**, e.g., an agent) to use tools offered by a **server**. The client asks `tools/list` to see what tools exist (each tool has a name, a description and a JSON Schema for its arguments, `input_schema`) and `tools/call` to run one with arguments. The server answers with a result: a list of content blocks (usually text) and an `is_error` flag, so a tool failure is an ordinary result the model can read rather than a crash (`mcp_types/_types.py`: `Tool`, `CallToolResult`). Messages travel over a **transport**: `stdio` (a local subprocess) or **streamable HTTP** (over the network, which we use). Because every tool call is a message, something in the middle can inspect it — that is what the gateway does.

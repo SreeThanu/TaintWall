@@ -1,6 +1,6 @@
 # Issues and Backlog
 
-Status: `todo` · `in-progress` · `blocked` · `done`. Claude Code updates the status when a task is finished and stops after each task.
+Status: `todo` · `in-progress` · `blocked` · `done`. The status is updated when a task is finished, and work stops after each task.
 
 Plan: **M0 setup (day 1) → M1 pass-through + baseline (week 1) → M2 defenses (week 2) → M3 system layer (week 3) → M4 performance, eval report, deploy (week 4).** Stretch items only after M4.
 
@@ -10,7 +10,7 @@ Plan: **M0 setup (day 1) → M1 pass-through + baseline (week 1) → M2 defenses
 |---|---|---|---|
 | M0-1 | Repo skeleton: `uv` project, Python 3.12, packages `taintwall/`, `eval/`, `tests/`; pytest, ruff, mypy; dependency groups `dev` and `eval`; smoke test | Tree, `uv run pytest` output, docs/CONTRIBUTING.md commands filled in | done |
 | M0-1b | Rename Agent Gateway / `gateway/` references in README, `docs/` and docs/CONTRIBUTING.md, plus repo paths, to Taintwall / `taintwall/` | grep showing no stale references (excluding DECISIONS.md history) | done |
-| M0-2 | Local environment on the T7: `UV_CACHE_DIR`, `UV_LINK_MODE` and `UV_PYTHON_INSTALL_DIR` set; check internal disk is not used for caches | `du -sh` of cache on T7; note in README "Local setup" | done |
+| M0-2 | Local environment: uv cache and Python on a configurable disk (`UV_CACHE_DIR`, `UV_LINK_MODE`, `UV_PYTHON_INSTALL_DIR`); check caches stay on that disk | `du -sh` of cache; note in README "Local setup" | done |
 | M0-3 | Pin versions: `mcp`, `agentdojo==0.1.35`, `anthropic` (compatible with AgentDojo); record in DECISIONS.md | `uv.lock` committed; `uv run python -c "import agentdojo, mcp"` works | done |
 | M0-4 | GitHub repo + CI (ruff, mypy, pytest on push) | Green CI run link | todo |
 
