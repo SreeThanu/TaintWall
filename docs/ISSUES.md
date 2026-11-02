@@ -51,6 +51,7 @@ Plan: **M0 setup (day 1) → M1 pass-through + baseline (week 1) → M2 defenses
 | M3-3 | Approvals state machine with atomic transitions, waiting with timeout, restart safety | Tests incl. concurrent resolve and restart |
 | M3-4 | Vault: encrypted secrets, injection, redaction everywhere; scrub all vault-injected secret values from upstream results and errors before they reach the agent (upstreams may echo credentials); secret-echo test | Security test passes |
 | M3-5 | Audit via queue + consumer; backpressure metric; session replay query | Tests incl. slow consumer |
+| M3-5b | Investigate: can audit record forwarded:true for a call never sent (legacy mode, upstream killed right after connect)? Reproduce through the gateway; if confirmed, fix so `forwarded` reflects whether bytes were actually sent to the upstream (or mark it unknown); add a test | Test reproducing the scenario through the gateway, audit field correct |
 | M3-6 | Rate limits (token bucket) and circuit breakers per upstream | Tests with fault-injection upstream |
 | M3-7 | Minimal dashboard: login, approval queue, approval detail with evidence, session timeline | Screenshot; approve/deny works end-to-end |
 | M3-8 | OpenTelemetry spans per stage | Trace screenshot or exported trace |
