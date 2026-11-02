@@ -30,6 +30,9 @@ What a client sees when a tool fails depends on the class and the protocol revis
 - Separately, at DEBUG level the libraries log whole messages: `mcp.client.streamable_http` logs each received SSE message and `sse_starlette.sse` each response chunk (observed in M1-3, fake secret included). The gateway therefore never lets those loggers go below INFO (DECISIONS D26).
 So the gateway catches every exception in its own handlers, returns a fixed, redacted error, and logs only redacted text (non-negotiable 2; DECISIONS D20).
 
+## Structured concurrency (anyio task groups)
+A task group ties background tasks to the block of code that started them, so none can outlive it. If one child task fails, anyio cancels its siblings and also the task that entered the group, then raises the failure there. We need this idea because an MCP `Client` runs a task group inside it, so a broken connection cancels whichever task entered that `Client`. Without care, a gateway that enters every client in its startup task loses all upstreams and its own request handling when one upstream dies. So each client gets its own supervisor task (DECISIONS D25).
+
 ## Proxy / gateway
 A program that sits between two parties and forwards traffic, adding checks on the way. To the agent our gateway looks like an MCP server; to the real tools it looks like an MCP client.
 

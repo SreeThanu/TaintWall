@@ -4,10 +4,10 @@ There is no MCP session to pool on the 2026-07-28 protocol; "reuse" means one op
 upstream over a shared, pooled HTTP client. Startup fails if any upstream is unreachable or two
 namespaced tool names collide. Tool definitions are cached once at startup (THREAT_MODEL).
 
-Each client is held by its own supervisor task (D25). When an upstream connection breaks, the
-SDK client's internal task group cancels the scope it was entered in; inside a supervisor that
-only ends that upstream, instead of cancelling the gateway's lifespan and every other upstream.
-A broken upstream is not reconnected (M3-6); calls to it fail closed without being forwarded.
+Each client is held by its own supervisor task (D25). A failed POST ends the SDK client's transport
+task group, and anyio then cancels the task that entered it; inside a supervisor that only ends
+that upstream, instead of cancelling the gateway's lifespan and every other upstream. A broken
+upstream is not reconnected (M3-6); calls to it fail closed without being forwarded.
 """
 
 from __future__ import annotations
