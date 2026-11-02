@@ -1,8 +1,11 @@
 # Local development config. Start the test upstream first:
 #   uv run python -m tests.support.upstream --serve --port 8801
+# Then create a grant (the token is printed once):
+#   uv run taintwall-grant create --grants-file data/grants.yaml --agent-id dev --tools '*' --ttl-hours 24
 host: 127.0.0.1
 port: 8800
 audit_path: data/audit.jsonl   # data/ is gitignored
+grants_path: data/grants.yaml  # hashes only; created by taintwall-grant
 upstreams:
   - namespace: test
     url: http://127.0.0.1:8801/mcp

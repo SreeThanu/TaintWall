@@ -41,6 +41,7 @@ class GatewayConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = Field(default=8800, ge=0, le=65535)
     audit_path: Path
+    grants_path: Path
     upstreams: list[UpstreamConfig] = Field(min_length=1)
 
     @model_validator(mode="after")

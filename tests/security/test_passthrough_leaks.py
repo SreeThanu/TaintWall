@@ -23,14 +23,18 @@ from mcp.types import CallToolResult, TextContent
 
 from taintwall.audit.jsonl import JsonlAuditSink
 from taintwall.errors import AGENT_TEXT, Outcome
+from taintwall.grants.store import GrantStore
 from taintwall.mcp_proxy import build_gateway
 from taintwall.testing.http import serve_in_thread
 from taintwall.upstreams import UpstreamRegistry, UpstreamTarget
+from tests.support.grants import issue
 from tests.support.processes import ReadyProcess, upstream_subprocess
 from tests.support.upstream import FAKE_SECRET
 
 MODES = ["auto", "legacy"]
 GATEWAY_TIMEOUT_S = 1.0
+TOKEN, GRANT = issue()
+STORE = GrantStore([GRANT])
 
 
 @dataclass
@@ -53,14 +57,14 @@ def gw(
     audit_path = tmp_path_factory.mktemp("audit") / "audit.jsonl"
     target = UpstreamTarget("up", upstream.url, timeout_s=GATEWAY_TIMEOUT_S, mode=request.param)
     gateway = build_gateway([target], JsonlAuditSink(audit_path))
-    with serve_in_thread(gateway.server.streamable_http_app(stateless_http=True)) as base:
+    with serve_in_thread(gateway.http_app(STORE)) as base:
         yield RunningGateway(f"{base}/mcp", audit_path, upstream)
 
 
 def call(url: str, agent_mode: str, name: str, arguments: dict[str, Any]) -> CallToolResult:
     async def go() -> CallToolResult:
         async with (
-            httpx2.AsyncClient() as http,
+            httpx2.AsyncClient(headers={"Authorization": f"Bearer {TOKEN}"}) as http,
             Client(streamable_http_client(url, http_client=http), mode=agent_mode) as client,  # type: ignore[arg-type]
         ):
             return await client.call_tool(name, arguments)
@@ -170,8 +174,7 @@ def test_dead_upstream_fails_closed_and_others_keep_working(
             UpstreamTarget("b", b.url, timeout_s=GATEWAY_TIMEOUT_S, mode=upstream_mode),  # type: ignore[arg-type]
         ]
         gateway = build_gateway(targets, JsonlAuditSink(audit_path))
-        app = gateway.server.streamable_http_app(stateless_http=True)
-        url = f"{stack.enter_context(serve_in_thread(app))}/mcp"
+        url = f"{stack.enter_context(serve_in_thread(gateway.http_app(STORE)))}/mcp"
         assert text_of(call(url, agent_mode, "a__echo", {"text": "a"})) == "a"
         a.stop()
         for _ in range(3):

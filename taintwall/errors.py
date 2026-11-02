@@ -15,7 +15,7 @@ import anyio
 import httpx2
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent
-from mcp_types.jsonrpc import CONNECTION_CLOSED, REQUEST_TIMEOUT
+from mcp_types.jsonrpc import CONNECTION_CLOSED, INTERNAL_ERROR, REQUEST_TIMEOUT
 
 
 class Outcome(StrEnum):
@@ -27,6 +27,13 @@ class Outcome(StrEnum):
     UNKNOWN_TOOL = "unknown_tool"
     AUDIT_UNAVAILABLE = "audit_unavailable"
     INTERNAL_ERROR = "internal_error"
+    UNAUTHORIZED = "unauthorized"
+    TOOL_NOT_IN_GRANT = "tool_not_in_grant"
+
+
+# JSON-RPC server-error range. Free in the installed SDK (test_errors); -32001 is REQUEST_TIMEOUT.
+AUTH_ERROR_CODE = -32030
+INTERNAL_ERROR_CODE = INTERNAL_ERROR
 
 
 # Whether the gateway knows if the upstream executed the call. After a timeout or a broken
@@ -40,6 +47,8 @@ OUTCOME_KNOWN = {
     Outcome.UNKNOWN_TOOL: True,  # never forwarded
     Outcome.AUDIT_UNAVAILABLE: True,  # never forwarded
     Outcome.INTERNAL_ERROR: False,
+    Outcome.UNAUTHORIZED: True,  # never forwarded
+    Outcome.TOOL_NOT_IN_GRANT: True,  # never forwarded
 }
 
 AGENT_TEXT = {
@@ -48,6 +57,8 @@ AGENT_TEXT = {
     Outcome.UNKNOWN_TOOL: "TaintwallError: unknown tool",
     Outcome.AUDIT_UNAVAILABLE: "TaintwallError: audit unavailable, call not forwarded",
     Outcome.INTERNAL_ERROR: "TaintwallError: internal error",
+    Outcome.UNAUTHORIZED: "TaintwallError: unauthorized",
+    Outcome.TOOL_NOT_IN_GRANT: "TaintwallError: tool not allowed by grant",
 }
 
 # Raised by the network or stream layer when an upstream connection fails or breaks.

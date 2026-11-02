@@ -13,15 +13,17 @@ import uvicorn
 
 from taintwall.audit.jsonl import JsonlAuditSink
 from taintwall.config import GatewayConfig, load_config
+from taintwall.grants.store import GrantsFileError, load_grants
 from taintwall.log_redaction import DropExceptionDetails
 from taintwall.mcp_proxy import build_gateway
 from taintwall.upstreams import targets_from_config
 
 
 def build_app(config: GatewayConfig, audit: JsonlAuditSink | None = None) -> Any:
-    """The gateway's ASGI app: one MCP endpoint at /mcp, stateless HTTP (D19)."""
+    """The gateway's ASGI app: one MCP endpoint at /mcp, stateless HTTP (D19), grant required."""
+    store = load_grants(config.grants_path)
     gateway = build_gateway(targets_from_config(config), audit or JsonlAuditSink(config.audit_path))
-    return gateway.server.streamable_http_app(stateless_http=True, host=config.host)
+    return gateway.http_app(store, host=config.host)
 
 
 def configure_logging(level: int = logging.INFO) -> None:
@@ -46,7 +48,13 @@ def main(argv: list[str] | None = None) -> int:
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((config.host, port))
     bound_port = sock.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(build_app(config), lifespan="on", log_config=None))
+    try:
+        app = build_app(config)
+    except GrantsFileError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    # No access log: it records query strings, where a token sent by mistake would land (D31).
+    server = uvicorn.Server(uvicorn.Config(app, lifespan="on", log_config=None, access_log=False))
     if args.print_ready:
         _announce_when_started(server, f"http://{config.host}:{bound_port}/mcp")
     server.run(sockets=[sock])

@@ -3,7 +3,8 @@
 Upstream and gateway each run as their own process (the gateway via its real CLI), over HTTP on
 127.0.0.1, protocol auto (2026-07-28). Calls are sequential and interleaved, alternating which
 path goes first; overhead is paired per iteration (gateway call minus the adjacent direct call).
-Results are ESTIMATE-local: one laptop, synchronous JSONL audit included (D23).
+The gateway path includes grant authentication with one grant in the store. Results are
+ESTIMATE-local: one laptop, synchronous JSONL audit included (D23).
 
 Usage: uv run python -m loadtest.passthrough_latency --n 1000 --warmup 50
 """
@@ -20,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ import yaml
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
+from taintwall.grants.store import add_grant, utc_now
 from tests.support.processes import REPO_ROOT, ready_process, upstream_subprocess
 
 
@@ -37,12 +39,14 @@ def percentiles(values: list[float]) -> dict[str, float]:
     return {"p50": round(q[49], 3), "p95": round(q[94], 3), "p99": round(q[98], 3)}
 
 
-async def measure(direct_url: str, gateway_url: str, n: int, warmup: int) -> dict[str, list[float]]:
+async def measure(
+    direct_url: str, gateway_url: str, token: str, n: int, warmup: int
+) -> dict[str, list[float]]:
     direct_ms: list[float] = []
     gateway_ms: list[float] = []
     async with (
         httpx2.AsyncClient() as h1,
-        httpx2.AsyncClient() as h2,
+        httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}) as h2,
         Client(streamable_http_client(direct_url, http_client=h1)) as direct,
         Client(streamable_http_client(gateway_url, http_client=h2)) as via,
     ):
@@ -89,17 +93,25 @@ def main() -> int:
     args = parser.parse_args()
 
     with upstream_subprocess() as upstream, tempfile.TemporaryDirectory() as tmp:
+        grants_path = Path(tmp) / "grants.yaml"
+        token, _ = add_grant(
+            grants_path,
+            agent_id="benchmark",
+            tools=["*"],
+            expires_at=utc_now() + timedelta(hours=24),
+        )
         config_path = Path(tmp) / "gateway.yaml"
         config = {
             "host": "127.0.0.1",
             "port": 0,
             "audit_path": str(Path(tmp) / "audit.jsonl"),
+            "grants_path": str(grants_path),
             "upstreams": [{"namespace": "up", "url": upstream.url, "timeout_s": 30}],
         }
         config_path.write_text(yaml.safe_dump(config))
         gateway_args = ["-m", "taintwall.app", "--config", str(config_path), "--print-ready"]
         with ready_process(gateway_args) as gateway:
-            samples = asyncio.run(measure(upstream.url, gateway.url, args.n, args.warmup))
+            samples = asyncio.run(measure(upstream.url, gateway.url, token, args.n, args.warmup))
         audit_lines = (Path(tmp) / "audit.jsonl").read_text().count("\n")
 
     overhead = [g - d for g, d in zip(samples["gateway"], samples["direct"], strict=True)]

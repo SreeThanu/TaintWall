@@ -33,6 +33,12 @@ So the gateway catches every exception in its own handlers, returns a fixed, red
 ## Structured concurrency (anyio task groups)
 A task group ties background tasks to the block of code that started them, so none can outlive it. If one child task fails, anyio cancels its siblings and also the task that entered the group, then raises the failure there. We need this idea because an MCP `Client` runs a task group inside it, so a broken connection cancels whichever task entered that `Client`. Without care, a gateway that enters every client in its startup task loses all upstreams and its own request handling when one upstream dies. So each client gets its own supervisor task (DECISIONS D25).
 
+## ASGI middleware
+ASGI is the interface between a Python web server (uvicorn) and the app. Middleware is a function wrapped around the whole app, so it sees each request before the app does and can answer without calling the app at all. We use it to reject bad tokens before any MCP code reads the body. Without it, every handler and HTTP method needs its own check, and one missed path is a bypass (DECISIONS D29).
+
+## Bearer token, and why SHA-256 rather than a password hash
+A bearer token works for whoever holds it, like a key, so it must never reach logs, and we store only its hash. Password hashes (bcrypt, argon2) are deliberately slow because passwords are guessable, and each guess has to be made expensive. A 256-bit random token cannot be guessed, so SHA-256 is enough, and a slow hash would only add cost to every request. If the stored hashes leak, the tokens stay safe, because SHA-256 cannot be reversed (DECISIONS D28).
+
 ## Proxy / gateway
 A program that sits between two parties and forwards traffic, adding checks on the way. To the agent our gateway looks like an MCP server; to the real tools it looks like an MCP client.
 

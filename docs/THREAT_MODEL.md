@@ -23,7 +23,7 @@ Draft v1, 27 Oct 2026. Review whenever the request path changes.
 
 ## 3. Trust boundaries
 
-1. Agent ↔ gateway (authenticated agent key; everything the agent sends is untrusted input).
+1. Agent ↔ gateway (authenticated grant token; everything the agent sends is untrusted input).
 2. Gateway ↔ upstream tool servers (gateway holds credentials).
 3. Tool results ↔ agent context (untrusted content enters the model here; the gateway labels it on the way through).
 4. Dashboard ↔ approver (authenticated).
@@ -45,6 +45,8 @@ Draft v1, 27 Oct 2026. Review whenever the request path changes.
 | T11 | Evasion of provenance matching: attacker asks the agent to rewrite the address ("attacker at example dot com"), split it, or encode it | Normalisation catches simple cases only; **documented limit**; measured with adaptive attacks | Adaptive attack set in eval |
 | T12 | Denial of service via many calls | Rate limits, circuit breakers | Load test |
 | T13 | Duplicate side effects: after a timeout or a broken connection the upstream may already have executed the call; an agent that retries can repeat it (e.g., send money twice) | Audit records `outcome: timeout` / `unavailable` with `outcome_known: false` ("outcome unknown — the upstream may have executed the call"). Idempotency keys / de-duplication are **future work** | Integration and leak tests assert `outcome_known: false` |
+| T15 | Audit-flood DoS: rejections of unauthenticated requests write audit events, and audit is fail-closed (D23), so a client with no token could fill the disk and block all authorised calls. **Must be resolved before any network-exposed deployment (M4).** | M1: rejections are aggregated per reason and window, with no per-request audit or log line, and a failed aggregate write never blocks calls (D30). This bounds that path only. Still open: a disk filled any other way blocks calls (fail closed, intended), including by a valid grant's own calls; request floods still cost CPU and connections. Rate limits: M3-6 | `test_attack_rejection_flood_cannot_fill_the_audit_and_block_authorised_calls`, `tests/unit/test_rejections.py` |
+| T16 | Stolen grant token: a bearer token works for whoever holds it, until it expires | Tokens are 256-bit random; only the hash is stored (D28); never logged, audited or forwarded upstream; accepted only in the `Authorization` header (D29, D31); short expiry; a grant scopes its tools. No revocation until M2-4. TLS in deployment (§5). **Known limit:** the audit and logs record the tool name and argument keys as sent, so an agent that puts its own token there would log it; argument values are never logged | `tests/security/test_grant_token_leaks.py` |
 | T14 | Tool-definition rug pull: an upstream changes a tool's description or schema after it was reviewed (e.g., to add hidden instructions) | **M1 caches tool definitions once at startup** and never refreshes them, so a change only takes effect after a gateway restart, unnoticed. Hashing definitions and alerting on change on refresh: ISSUES M3-9 | M3-9 tests |
 
 ## 5. Out of scope (v1)
@@ -52,7 +54,7 @@ Draft v1, 27 Oct 2026. Review whenever the request path changes.
 - Model-internal defenses (fine-tuning, system prompts) — the gateway is agent-agnostic.
 - Compromised gateway host or operator.
 - Network attackers beyond using TLS in deployment.
-- Side channels (timing).
+- Side channels (timing). Token lookup is by hash, so timing reveals at most a stored hash prefix (D28).
 - Multi-tenant isolation (stretch goal only).
 
 ## 6. The core limitation, stated plainly

@@ -40,9 +40,9 @@ Steps 3–5 never call the network except the state store. Step 6 only runs when
 ## 3. Request lifecycle (tools/call)
 
 1. Agent sends `tools/call` for `bank__send_money` with arguments.
-2. **Auth:** the grant token in the credential header the MCP client is configured with → `grant_id` → `agent_id`. Missing, unknown, expired or revoked → error. Provenance and taint state are keyed by `grant_id`; MCP sessions are not used and the endpoint runs `stateless_http=True` (DECISIONS D19, PRIMER "Session (in this project)").
+2. **Auth:** ASGI middleware reads the grant token from the `Authorization: Bearer` header the MCP client is configured with → SHA-256 hash → `grant_id` → `agent_id`. Missing, malformed, unknown, expired or revoked → HTTP 401 before MCP, with the same response for every reason (D28–D31). Provenance and taint state are keyed by `grant_id`; MCP sessions are not used and the endpoint runs `stateless_http=True` (DECISIONS D19, PRIMER "Session (in this project)").
 3. **Rate limit:** token bucket keyed by agent and by tool. Exceeded → error with retry-after.
-4. **Grant:** load the grant named by the token (step 2). Tool not in grant → per policy `deny` or `hold`.
+4. **Grant:** load the grant named by the token (step 2). Tool not in grant → per policy `deny` or `hold` (M1: fixed deny, and `tools/list` is filtered to the grant; D32).
 5. **Provenance:** extract atoms from arguments; look them up in the session's atom store; attach labels such as `untrusted_source`, `sensitive`, with the source tool call ids as evidence.
 6. **Policy:** evaluate rules in order; combine with deny > hold > allow; default deny. Record `rule_ids`, `policy_version`.
 7. **Hold:** create approval record (status `pending`, expires_at). The request waits on a notification (Redis pub/sub) up to `approval_timeout`. Approved → continue. Denied or expired → return an MCP error result explaining it was not executed.
@@ -71,8 +71,9 @@ Every stage is an OpenTelemetry span.
 - **Session taint flag:** set when any untrusted result enters the session; stored per `grant_id`.
 
 ### 4.4 Grants (`taintwall/grants/`)
-- Created by an admin API call or by a gateway meta-tool `declare_task(purpose, tools)` that the agent can call; policy decides whether self-declared grants need approval.
-- Fields: `grant_id, agent_id, tools[], expires_at, revoked_at, created_by`. The grant is also the session key (D19).
+- M1: created by the `taintwall-grant` CLI, which prints the token once; the gateway reads the grants file at startup (D33).
+- From M2-4: created by an admin API call or by a gateway meta-tool `declare_task(purpose, tools)` that the agent can call; policy decides whether self-declared grants need approval.
+- Fields: `grant_id, agent_id, token_hash, tools[], expires_at, revoked_at, created_by`. The grant is also the session key (D19).
 
 ### 4.5 Approvals (`taintwall/approvals/`)
 - State machine: `pending → approved | denied | expired`. Transitions are atomic (conditional update in Postgres) so two approvers or two gateway instances cannot both resolve it.
@@ -110,7 +111,7 @@ run_task_with_pipeline(..., runtime_class=BridgedRuntime)   pipeline: claude-hai
 
 ```
 agents(agent_id, name, api_key_hash, created_at, disabled_at)
-grants(grant_id, agent_id, tools jsonb, purpose, expires_at, revoked_at, created_by)
+grants(grant_id, agent_id, token_hash unique, tools jsonb, purpose, expires_at, revoked_at, created_by)
 policy_versions(version_hash, yaml, loaded_at, loaded_by)
 approvals(approval_id, grant_id, agent_id, tool, args_redacted jsonb, evidence jsonb,
           status, created_at, expires_at, decided_by, decided_at)

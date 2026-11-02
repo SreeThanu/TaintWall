@@ -13,11 +13,20 @@ from mcp.types import CallToolResult, TextContent
 
 from taintwall.audit.jsonl import JsonlAuditSink
 from taintwall.errors import AGENT_TEXT, Outcome
+from taintwall.grants.store import Grant
 from taintwall.mcp_proxy import Gateway, build_gateway
 from taintwall.upstreams import UpstreamStartupError, UpstreamTarget
+from tests.support.grants import issue
 from tests.support.upstream import TOOL_NAMES, build_upstream
 
 MODES = ["auto", "legacy"]
+_, GRANT = issue(grant_id="test-grant", agent_id="test-agent")
+
+
+def in_process_grant(_: Any) -> Grant:
+    """In-process clients have no HTTP request; over HTTP the middleware provides the grant."""
+    return GRANT
+
 
 # Calls compared field by field against the same call made directly to the upstream.
 IDENTICAL_CALLS: list[tuple[str, dict[str, Any]]] = [
@@ -51,7 +60,8 @@ def gateway(tmp_path: Path, upstream_mode: str, **extra: Any) -> Gateway:
         UpstreamTarget("beta", beta_upstream(), timeout_s=5, mode=upstream_mode),  # type: ignore[arg-type]
         *extra.get("more", []),
     ]
-    return build_gateway(targets, extra.get("audit") or JsonlAuditSink(tmp_path / "audit.jsonl"))
+    audit = extra.get("audit") or JsonlAuditSink(tmp_path / "audit.jsonl")
+    return build_gateway(targets, audit, grant_resolver=in_process_grant)
 
 
 def fields(result: CallToolResult) -> tuple[Any, ...]:
@@ -140,6 +150,7 @@ def test_unknown_tool_is_rejected(tmp_path: Path, name: str) -> None:
     decision = audit_events(tmp_path)[-1]
     assert decision["event"] == "decision"
     assert decision["decision"] == "deny"
+    assert decision["reason"] == "unknown_tool"
 
 
 def test_concurrent_calls_reuse_one_client_and_route_correctly(tmp_path: Path) -> None:
@@ -163,7 +174,8 @@ def test_audit_events_have_reasons_and_no_argument_values(tmp_path: Path) -> Non
     run(go)
     raw = (tmp_path / "audit.jsonl").read_text()
     assert probe not in raw
-    decision, result = audit_events(tmp_path)
+    # The SDK client also lists tools once, to validate results; that decision has its own test.
+    decision, result = [e for e in audit_events(tmp_path) if e["method"] == "tools/call"]
     assert decision["event"] == "decision" and decision["decision"] == "allow"
     assert result["event"] == "result"
     for event in (decision, result):
@@ -171,7 +183,9 @@ def test_audit_events_have_reasons_and_no_argument_values(tmp_path: Path) -> Non
         assert event["tool"] == "alpha__echo"
         assert event["upstream"] == "alpha"
         assert event["policy_version"] == "pass_through"
-        assert event["rule_ids"] == []
+        assert event["rule_ids"] == ["in_grant"]
+        assert event["grant_id"] == "test-grant"
+        assert event["agent_id"] == "test-agent"
         assert event["argument_keys"] == ["text"]
     assert result["outcome"] == "ok" and result["outcome_known"] is True
     assert set(result["timings_ms"]) == {"decide_and_audit", "upstream", "total"}
@@ -205,7 +219,9 @@ def test_audit_failure_blocks_the_call(tmp_path: Path) -> None:
         calls.append("touched")
         return "touched"
 
-    gw = build_gateway([UpstreamTarget("spy", spy)], FailingAudit())
+    gw = build_gateway(
+        [UpstreamTarget("spy", spy)], FailingAudit(), grant_resolver=in_process_grant
+    )
 
     async def go() -> CallToolResult:
         async with Client(gw.server) as via:

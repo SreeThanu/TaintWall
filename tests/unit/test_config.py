@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def config(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "audit_path": "data/audit.jsonl",
+        "grants_path": "data/grants.yaml",
         "upstreams": [{"namespace": "test", "url": "http://127.0.0.1:8801/mcp"}],
     }
     return base | overrides
@@ -49,6 +50,13 @@ def test_duplicate_namespaces_rejected() -> None:
     dup = [{"namespace": "a", "url": "http://x/mcp"}, {"namespace": "a", "url": "http://y/mcp"}]
     with pytest.raises(ValidationError, match="unique"):
         GatewayConfig.model_validate(config(upstreams=dup))
+
+
+def test_grants_path_is_required() -> None:
+    data = config()
+    del data["grants_path"]
+    with pytest.raises(ValidationError):
+        GatewayConfig.model_validate(data)
 
 
 def test_no_upstreams_rejected() -> None:
