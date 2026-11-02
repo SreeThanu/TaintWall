@@ -1,0 +1,14 @@
+benchmark: loadtest/passthrough_latency.py
+tool: echo
+protocol_mode: auto
+transport: streamable HTTP, 127.0.0.1, separate processes
+git:
+  commit: 1c882b0afdb76c91634b33ee743a91cde76dfecc
+  dirty: false
+python: 3.12.14
+platform: macOS-27.0.1-arm64-arm-64bit
+machine: arm64
+versions:
+  mcp: 2.3.0
+  uvicorn: 0.54.0
+  httpx2: 2.13.1
