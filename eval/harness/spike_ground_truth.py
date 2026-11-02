@@ -21,6 +21,13 @@ from eval.harness import connections
 from eval.harness.connections import BridgeConnection
 from eval.harness.env_bridge import EnvBridge
 from eval.harness.replay import invalid_call_errors, replay, schemas_match
+from eval.harness.synthetic import (
+    INVALID_CASES,
+    VALID_CASES,
+    case_problems,
+    differences,
+    run_case,
+)
 
 DEV_SUITES = ("workspace", "slack")
 KINDS = ("user", "injection")
@@ -115,6 +122,23 @@ def run_suite(suite_name: str, suite: Any, conns: dict[str, BridgeConnection]) -
     return tally
 
 
+def run_synthetic(suite: Any, conns: dict[str, BridgeConnection]) -> list[str]:
+    """M1-5c: direct vs each bridge path for the tools ground truth never executes."""
+    failures: list[str] = []
+    for case in VALID_CASES + INVALID_CASES:
+        where = f"synthetic/{case.name}"
+        try:
+            direct = run_case(suite, case)
+            failures += [f"{where} path a: {p}" for p in case_problems(case, direct)]
+            for path, conn in conns.items():
+                bridged = run_case(suite, case, conn)
+                failures += [f"{where} path {path}: {p}" for p in case_problems(case, bridged)]
+                failures += [f"{where} path {path}: {d}" for d in differences(direct, bridged)]
+        except Exception as exc:
+            failures.append(f"{where}: {type(exc).__name__}: {exc}")
+    return failures
+
+
 def _coverage(suite: Any, conns: dict[str, BridgeConnection]) -> str:
     """Which tools ran successfully through each bridge path, and which were only schema-checked."""
     tools = sorted(f.name for f in suite.tools)
@@ -148,8 +172,11 @@ def main() -> int:
                 raise RuntimeError("HTTP connection has no URL")
             urls.append(c.url)
             tally = run_suite(name, suite, {"b": b, "c": c})
+            synthetic_failures = (
+                run_synthetic(suite, {"b": b, "c": c}) if name == "workspace" else []
+            )
             coverage = _coverage(suite, {"b": b, "c": c})
-        all_failures += tally.failures
+        all_failures += tally.failures + synthetic_failures
         print(f"\n## {name}: {tally.runs['user']} user tasks, {tally.runs['injection']} injection")
         print(
             "| row | user a | user b | user c | injection a | injection b | injection c |\n"
@@ -158,6 +185,11 @@ def main() -> int:
         for row in ROWS:
             cells = [tally.cell(kind, path, row) for kind in KINDS for path in PATHS]
             print(f"| {row} | " + " | ".join(cells) + " |")
+        if name == "workspace":
+            print(
+                f"synthetic (M1-5c): {len(VALID_CASES)} valid and {len(INVALID_CASES)} invalid "
+                f"cases on a, b, c; failures: {len(synthetic_failures)}"
+            )
         print(coverage)
     print("\n## criterion 6: back-to-back run, cleanup")
     leftover = sorted({t.name for t in threading.enumerate()} - threads_before)

@@ -149,7 +149,7 @@ taintwall/
     grants/  policy/  provenance/  approvals/  vault/  audit/  dashboard/  stores/
   eval/
     harness/           env_bridge.py  bridged_runtime.py  connections.py  replay.py  frozen_clock.py
-                       spike_ground_truth.py
+                       spike_ground_truth.py  synthetic.py
     configs/  run.py  report.py
   loadtest/
   tests/
