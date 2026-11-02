@@ -1,0 +1,23 @@
+{
+  "run_id": "20261102T083616Z-passthrough-latency",
+  "label": "ESTIMATE-local",
+  "n": 1000,
+  "warmup": 50,
+  "unit": "ms",
+  "direct": {
+    "p50": 1.263,
+    "p95": 1.411,
+    "p99": 1.49
+  },
+  "gateway": {
+    "p50": 2.685,
+    "p95": 3.087,
+    "p99": 3.513
+  },
+  "paired_overhead": {
+    "p50": 1.423,
+    "p95": 1.719,
+    "p99": 2.14
+  },
+  "audit_lines_written": 2100
+}
